@@ -33,7 +33,7 @@ module.exports = class ServerApi {
         return Array.from(roomList.entries()).map(([roomId, room]) => ({
             id: roomId,
             peers: room.peers.size,
-            join: 'https://' + this._host + '/' + roomId,
+            join: 'http://' + this._host + '/' + roomId,
         }));
     }
 
@@ -100,7 +100,7 @@ module.exports = class ServerApi {
     }
 
     getMeetingURL() {
-        return 'https://' + this._host + '/join/' + uuidV4();
+        return 'http://' + this._host + '/join/' + uuidV4();
     }
 
     getJoinURL(data) {
@@ -121,7 +121,7 @@ module.exports = class ServerApi {
         const jwtToken = token ? '&token=' + this.getToken(token) : '';
 
         const joinURL =
-            'https://' +
+            'http://' +
             this._host +
             '/join?' +
             `room=${roomValue}` +

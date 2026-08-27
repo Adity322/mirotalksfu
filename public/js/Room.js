@@ -660,18 +660,35 @@ async function refreshMyAudioDevices() {
 }
 
 async function initEnumerateVideoDevices() {
-    // allow the video
-    await navigator.mediaDevices
-        .getUserMedia({ video: true })
-        .then(async (stream) => {
-            await enumerateVideoDevices(stream);
-            isVideoAllowed = true;
-        })
-        .catch(() => {
-            isVideoAllowed = false;
-        });
+    console.log('01 ----> Enumerate Video Devices');
+ 
+    try {
+        // Just get the list - don't open the camera
+        const devices = await navigator.mediaDevices.enumerateDevices();
+ 
+        if (videoSelect) videoSelect.innerHTML = '';
+        if (initVideoSelect) initVideoSelect.innerHTML = '';
+ 
+        lS.DEVICES_COUNT.video = 0;
+ 
+        for (const device of devices) {
+            if (device.kind !== 'videoinput') continue;
+ 
+            lS.DEVICES_COUNT.video++;
+            await addChild(device, [videoSelect, initVideoSelect]);
+        }
+ 
+        isEnumerateVideoDevices = true;
+ 
+        // Permission check: if enumerateDevices() succeeded, permission was granted
+        // But this does NOT mean camera is ON - only that it CAN be used
+        isVideoAllowed = BUTTONS.main.startVideoButton;
+ 
+    } catch (error) {
+        console.error('[Error] enumerate video devices:', error);
+        isEnumerateVideoDevices = false;
+    }
 }
-
 async function enumerateVideoDevices(stream) {
     console.log('02 ----> Get Video Devices');
 
@@ -700,17 +717,45 @@ async function enumerateVideoDevices(stream) {
 }
 
 async function initEnumerateAudioDevices() {
-    // allow the audio
-    await navigator.mediaDevices
-        .getUserMedia({ audio: true })
-        .then(async (stream) => {
-            await enumerateAudioDevices(stream);
-            await getMicrophoneVolumeIndicator(stream);
-            isAudioAllowed = true;
-        })
-        .catch(() => {
-            isAudioAllowed = false;
-        });
+    console.log('01 ----> Enumerate Audio Devices');
+ 
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+ 
+        if (microphoneSelect) microphoneSelect.innerHTML = '';
+        if (initMicrophoneSelect) initMicrophoneSelect.innerHTML = '';
+        if (speakerSelect) speakerSelect.innerHTML = '';
+        if (initSpeakerSelect) initSpeakerSelect.innerHTML = '';
+ 
+        lS.DEVICES_COUNT.audio = 0;
+        lS.DEVICES_COUNT.speaker = 0;
+ 
+        for (const device of devices) {
+            if (device.kind === 'audioinput') {
+                lS.DEVICES_COUNT.audio++;
+                await addChild(device, [microphoneSelect, initMicrophoneSelect]);
+            } else if (device.kind === 'audiooutput') {
+                lS.DEVICES_COUNT.speaker++;
+                await addChild(device, [speakerSelect, initSpeakerSelect]);
+            }
+        }
+ 
+        isEnumerateAudioDevices = true;
+        isAudioAllowed = BUTTONS.main.startAudioButton;
+ 
+        if (speakerSelect) {
+            speakerSelect.disabled = !sinkId;
+        }
+ 
+        if (!sinkId || !initSpeakerSelect.options.length) {
+            hide(initSpeakerSelect);
+            hide(speakerSelectDiv);
+        }
+ 
+    } catch (error) {
+        console.error('[Error] enumerate audio devices:', error);
+        isEnumerateAudioDevices = false;
+    }
 }
 
 async function enumerateAudioDevices(stream) {
@@ -754,6 +799,8 @@ async function enumerateAudioDevices(stream) {
 }
 
 async function stopTracks(stream) {
+    if (!stream) return;  // ← ADD THIS NULL CHECK
+
     stream.getTracks().forEach((track) => {
         track.stop();
     });
@@ -1118,18 +1165,25 @@ function isValidDuration(duration) {
 // ####################################################
 
 async function checkInitConfig() {
-    const localStorageInitConfig = lS.getLocalStorageInitConfig();
-    console.log('04.5 ----> Get init config', localStorageInitConfig);
-    if (localStorageInitConfig) {
-        if (isAudioVideoAllowed && !localStorageInitConfig.audioVideo) {
-            await handleAudioVideo();
-        } else {
-            if (isAudioAllowed && !localStorageInitConfig.audio) handleAudio();
-            if (isVideoAllowed && !localStorageInitConfig.video) handleVideo();
-        }
-    }
+    const config = lS.getLocalStorageInitConfig();
+ 
+    if (!config) return;
+ 
+    audio = !!config.audio;
+    video = false; // NEVER auto-start camera from localStorage
+ 
+    initAudioButton.className =
+        'fas fa-microphone' + (audio ? '' : '-slash');
+ 
+    initVideoButton.className = 'fas fa-video-slash';
+ 
+    setColor(initAudioButton, audio ? 'white' : 'red');
+    setColor(initVideoButton, 'red');
+ 
+    lS.setInitConfig(lS.MEDIA_TYPE.audio, audio);
+    lS.setInitConfig(lS.MEDIA_TYPE.video, false);
 }
-
+ 
 // ####################################################
 // SOME PEER INFO
 // ####################################################
@@ -1144,9 +1198,9 @@ function getPeerInfo() {
         peer_avatar: peer_avatar,
         peer_token: peer_token,
         peer_presenter: isPresenter,
-        peer_audio: isAudioAllowed,
+        peer_audio: audio,           // ← FIXED: Was isAudioAllowed
         peer_audio_volume: 100,
-        peer_video: isVideoAllowed,
+        peer_video: video,           // ← FIXED: Was isVideoAllowed
         peer_screen: isScreenAllowed,
         peer_recording: isRecording,
         peer_video_privacy: isVideoPrivacyActive,
@@ -1162,7 +1216,6 @@ function getPeerInfo() {
         user_agent: userAgent,
     };
 }
-
 function getInfo() {
     try {
         console.log('Info', parserResult);
@@ -1472,83 +1525,126 @@ function showMobileAudioGuidance() {
 }
 
 function handleAudio() {
-    isAudioAllowed = isAudioAllowed ? false : true;
-    initAudioButton.className = 'fas fa-microphone' + (isAudioAllowed ? '' : '-slash');
-    setColor(initAudioButton, isAudioAllowed ? 'white' : 'red');
-    setColor(startAudioButton, isAudioAllowed ? 'white' : 'red');
+    if (!isAudioAllowed) return;
+ 
+    audio = !audio;
+ 
+    initAudioButton.className =
+        'fas fa-microphone' + (audio ? '' : '-slash');
+ 
+    setColor(initAudioButton, audio ? 'white' : 'red');
+    setColor(startAudioButton, audio ? 'white' : 'red');
+ 
     checkInitAudio(isAudioAllowed);
-    lS.setInitConfig(lS.MEDIA_TYPE.audio, isAudioAllowed);
+ 
+    lS.setInitConfig(lS.MEDIA_TYPE.audio, audio);
 }
 
-function handleVideo() {
-    isVideoAllowed = isVideoAllowed ? false : true;
-    initVideoButton.className = 'fas fa-video' + (isVideoAllowed ? '' : '-slash');
-    setColor(initVideoButton, isVideoAllowed ? 'white' : 'red');
-    setColor(startVideoButton, isVideoAllowed ? 'white' : 'red');
-    checkInitVideo(isVideoAllowed);
-    lS.setInitConfig(lS.MEDIA_TYPE.video, isVideoAllowed);
-
-    elemDisplay('imageGrid', false);
-
-    isVideoAllowed &&
-    isMediaStreamTrackAndTransformerSupported &&
-    (BUTTONS.settings.virtualBackground !== undefined ? BUTTONS.settings.virtualBackground : true)
-        ? show(initVirtualBackgroundButton)
-        : hide(initVirtualBackgroundButton);
+async function handleVideo() {
+    if (!isVideoAllowed) return;
+ 
+    if (!video) {
+        // Camera is OFF → turn it ON
+        const deviceId = initVideoSelect.value;
+ 
+        if (!deviceId) return;
+ 
+        try {
+            const started = await changeCamera(deviceId);
+ 
+            if (!started) {
+                video = false;
+                return;
+            }
+ 
+            video = true;
+        } catch (error) {
+            console.error('[Error] handleVideo:', error);
+            video = false;
+            return;
+        }
+    } else {
+        // Camera is ON → turn it OFF
+        video = false;
+ 
+        await stopTracks(initStream);
+        initStream = null;
+ 
+        if (initVideo) {
+            initVideo.srcObject = null;
+        }
+ 
+        elemDisplay('initVideo', false);
+        elemDisplay('initVideoLoader', false);
+        initVideoContainerShow(false);
+    }
+ 
+    // Update UI to reflect the NEW state
+    initVideoButton.className =
+        'fas fa-video' + (video ? '' : '-slash');
+ 
+    setColor(initVideoButton, video ? 'white' : 'red');
+    setColor(startVideoButton, video ? 'white' : 'red');
+ 
+    lS.setInitConfig(lS.MEDIA_TYPE.video, video);
 }
 
 async function handleAudioVideo() {
-    isAudioVideoAllowed = isAudioVideoAllowed ? false : true;
-    isAudioAllowed = isAudioVideoAllowed;
-    isVideoAllowed = isAudioVideoAllowed;
-    lS.setInitConfig(lS.MEDIA_TYPE.audio, isAudioVideoAllowed);
-    lS.setInitConfig(lS.MEDIA_TYPE.video, isAudioVideoAllowed);
-    lS.setInitConfig(lS.MEDIA_TYPE.audioVideo, isAudioVideoAllowed);
-    initAudioButton.className = 'fas fa-microphone' + (isAudioVideoAllowed ? '' : '-slash');
-    initVideoButton.className = 'fas fa-video' + (isAudioVideoAllowed ? '' : '-slash');
-    initAudioVideoButton.className = 'fas fa-eye' + (isAudioVideoAllowed ? '' : '-slash');
+    isAudioVideoAllowed = !isAudioVideoAllowed;
+ 
     if (!isAudioVideoAllowed) {
+        // Turning OFF the audio/video feature
+        audio = false;
+        video = false;
+ 
+        isAudioAllowed = false;
+        isVideoAllowed = false;
+ 
+        await stopTracks(initStream);
+        initStream = null;
+ 
+        if (initVideo) {
+            initVideo.srcObject = null;
+        }
+ 
+        elemDisplay('initVideo', false);
+        elemDisplay('initVideoLoader', false);
+        initVideoContainerShow(false);
+ 
         hide(initAudioButton);
         hide(initVideoButton);
         hide(initVideoAudioRefreshButton);
-    }
-    if (isAudioAllowed && isVideoAllowed && !isMobileDevice) show(initVideoAudioRefreshButton);
-    setColor(initAudioVideoButton, isAudioVideoAllowed ? 'white' : 'red');
-    setColor(initAudioButton, isAudioAllowed ? 'white' : 'red');
-    setColor(initVideoButton, isVideoAllowed ? 'white' : 'red');
-    setColor(startAudioButton, isAudioAllowed ? 'white' : 'red');
-    setColor(startVideoButton, isVideoAllowed ? 'white' : 'red');
-    await checkInitVideo(isVideoAllowed);
-    checkInitAudio(isAudioAllowed);
-
-    elemDisplay('imageGrid', false);
-
-    isVideoAllowed &&
-    isMediaStreamTrackAndTransformerSupported &&
-    (BUTTONS.settings.virtualBackground !== undefined ? BUTTONS.settings.virtualBackground : true)
-        ? show(initVirtualBackgroundButton)
-        : hide(initVirtualBackgroundButton);
-}
-
-async function checkInitVideo(isVideoAllowed) {
-    if (isVideoAllowed && BUTTONS.main.startVideoButton) {
-        if (initVideoSelect.value) {
-            initVideoContainerShow();
-            await changeCamera(initVideoSelect.value);
-            isInitVideoLoaded = true;
-        }
-        sound('joined');
     } else {
-        if (initStream) {
-            stopTracks(initStream);
-            elemDisplay('initVideo', false);
-            elemDisplay('initVideoLoader', false);
-            initVideoContainerShow(false);
-            sound('left');
+        // Turning ON the audio/video feature
+        // Set permissions based on button config (NOT hardware state)
+        isAudioAllowed = BUTTONS.main.startAudioButton;
+        isVideoAllowed = BUTTONS.main.startVideoButton;
+ 
+        show(initAudioButton);
+        show(initVideoButton);
+ 
+        if (!isMobileDevice) {
+            show(initVideoAudioRefreshButton);
         }
-        isInitVideoLoaded = !isVideoAllowed;
     }
-    initVideoSelect.disabled = !isVideoAllowed;
+ 
+    lS.setInitConfig(lS.MEDIA_TYPE.audioVideo, isAudioVideoAllowed);
+ 
+    initAudioVideoButton.className =
+        'fas fa-eye' + (isAudioVideoAllowed ? '' : '-slash');
+ 
+    initAudioButton.className =
+        'fas fa-microphone' + (audio ? '' : '-slash');
+ 
+    initVideoButton.className =
+        'fas fa-video' + (video ? '' : '-slash');
+ 
+    setColor(initAudioVideoButton, isAudioVideoAllowed ? 'white' : 'red');
+    setColor(initAudioButton, audio ? 'white' : 'red');
+    setColor(initVideoButton, video ? 'white' : 'red');
+ 
+    checkInitVideo(isVideoAllowed);
+    checkInitAudio(isAudioAllowed);
 }
 
 function checkInitAudio(isAudioAllowed) {
