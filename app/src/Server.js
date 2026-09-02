@@ -4,7 +4,7 @@
 ███████ ███████ ██████  ██    ██ ███████ ██████  
 ██      ██      ██   ██ ██    ██ ██      ██   ██ 
 ███████ █████   ██████  ██    ██ █████   ██████  
-     ██ ██      ██   ██  ██  ██  ██      ██   ██ 
+     ██ ██      ██   ██  ██  ██  ██      ██   ██ 
 ███████ ███████ ██   ██   ████   ███████ ██   ██                                           
 
 prod dependencies: {
@@ -2628,6 +2628,14 @@ function startServer() {
 
             try {
                 const createWebRtcTransport = await room.createWebRtcTransport(socket.id);
+
+                console.log('WEBRTC TRANSPORT SENT TO CLIENT:', {
+                    id: createWebRtcTransport.id,
+                    iceParameters: createWebRtcTransport.iceParameters,
+                    iceCandidates: createWebRtcTransport.iceCandidates,
+                    dtlsParameters: createWebRtcTransport.dtlsParameters
+                });
+
                 callback(createWebRtcTransport);
             } catch (err) {
                 log.warn('Create WebRTC Transport warning', { error: err.message, peerInfo });
@@ -3061,8 +3069,8 @@ function startServer() {
             const knownProducerIds = new Set(
                 Array.isArray(data?.knownProducerIds)
                     ? data.knownProducerIds
-                          .slice(0, producerList.length)
-                          .filter((producerId) => typeof producerId === 'string')
+                        .slice(0, producerList.length)
+                        .filter((producerId) => typeof producerId === 'string')
                     : []
             );
             const missingProducers = knownProducerIds.size
@@ -3072,7 +3080,7 @@ function startServer() {
             callback ? callback(missingProducers) : socket.emit('newProducers', missingProducers);
         });
 
-        socket.on('getPeerCounts', async ({}, callback) => {
+        socket.on('getPeerCounts', async ({ }, callback) => {
             if (!roomExists(socket)) {
                 return callback({ error: 'Room not found' });
             }
@@ -4113,7 +4121,7 @@ function startServer() {
 
         // https://docs.liveavatar.com/reference/list_public_avatars_v1_avatars_public_get
         // https://docs.liveavatar.com/reference/list_user_avatars_v1_avatars_get
-        socket.on('getAvatarList', async ({}, cb) => {
+        socket.on('getAvatarList', async ({ }, cb) => {
             if (!config?.integrations?.videoAI?.enabled || !config?.integrations?.videoAI?.apiKey)
                 return cb({ error: 'Video AI seems disabled, try later!' });
 
@@ -4155,7 +4163,7 @@ function startServer() {
         });
 
         // https://docs.liveavatar.com/reference/list_voices_v1_voices_get
-        socket.on('getVoiceList', async ({}, cb) => {
+        socket.on('getVoiceList', async ({ }, cb) => {
             if (!config?.integrations?.videoAI?.enabled || !config?.integrations?.videoAI?.apiKey)
                 return cb({ error: 'Video AI seems disabled, try later!' });
 
@@ -4387,7 +4395,7 @@ function startServer() {
             }
         });
 
-        socket.on('getRTMP', async ({}, cb) => {
+        socket.on('getRTMP', async ({ }, cb) => {
             if (!roomExists(socket)) return;
 
             const room = getRoom(socket);

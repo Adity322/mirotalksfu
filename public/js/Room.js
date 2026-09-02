@@ -310,7 +310,7 @@ let joinRoomWithoutAudioVideo = true;
 let joinRoomWithScreen = false;
 
 let audio = false;
-let video = false;
+let video = BUTTONS.main.startVideoButton;
 let screen = false;
 let hand = false;
 let camera = 'user';
@@ -661,29 +661,29 @@ async function refreshMyAudioDevices() {
 
 async function initEnumerateVideoDevices() {
     console.log('01 ----> Enumerate Video Devices');
- 
+
     try {
         // Just get the list - don't open the camera
         const devices = await navigator.mediaDevices.enumerateDevices();
- 
+
         if (videoSelect) videoSelect.innerHTML = '';
         if (initVideoSelect) initVideoSelect.innerHTML = '';
- 
+
         lS.DEVICES_COUNT.video = 0;
- 
+
         for (const device of devices) {
             if (device.kind !== 'videoinput') continue;
- 
+
             lS.DEVICES_COUNT.video++;
             await addChild(device, [videoSelect, initVideoSelect]);
         }
- 
+
         isEnumerateVideoDevices = true;
- 
+
         // Permission check: if enumerateDevices() succeeded, permission was granted
         // But this does NOT mean camera is ON - only that it CAN be used
         isVideoAllowed = BUTTONS.main.startVideoButton;
- 
+
     } catch (error) {
         console.error('[Error] enumerate video devices:', error);
         isEnumerateVideoDevices = false;
@@ -718,18 +718,18 @@ async function enumerateVideoDevices(stream) {
 
 async function initEnumerateAudioDevices() {
     console.log('01 ----> Enumerate Audio Devices');
- 
+
     try {
         const devices = await navigator.mediaDevices.enumerateDevices();
- 
+
         if (microphoneSelect) microphoneSelect.innerHTML = '';
         if (initMicrophoneSelect) initMicrophoneSelect.innerHTML = '';
         if (speakerSelect) speakerSelect.innerHTML = '';
         if (initSpeakerSelect) initSpeakerSelect.innerHTML = '';
- 
+
         lS.DEVICES_COUNT.audio = 0;
         lS.DEVICES_COUNT.speaker = 0;
- 
+
         for (const device of devices) {
             if (device.kind === 'audioinput') {
                 lS.DEVICES_COUNT.audio++;
@@ -739,19 +739,19 @@ async function initEnumerateAudioDevices() {
                 await addChild(device, [speakerSelect, initSpeakerSelect]);
             }
         }
- 
+
         isEnumerateAudioDevices = true;
         isAudioAllowed = BUTTONS.main.startAudioButton;
- 
+
         if (speakerSelect) {
             speakerSelect.disabled = !sinkId;
         }
- 
+
         if (!sinkId || !initSpeakerSelect.options.length) {
             hide(initSpeakerSelect);
             hide(speakerSelectDiv);
         }
- 
+
     } catch (error) {
         console.error('[Error] enumerate audio devices:', error);
         isEnumerateAudioDevices = false;
@@ -1166,24 +1166,17 @@ function isValidDuration(duration) {
 
 async function checkInitConfig() {
     const config = lS.getLocalStorageInitConfig();
- 
     if (!config) return;
- 
     audio = !!config.audio;
     video = false; // NEVER auto-start camera from localStorage
- 
     initAudioButton.className =
         'fas fa-microphone' + (audio ? '' : '-slash');
- 
     initVideoButton.className = 'fas fa-video-slash';
- 
     setColor(initAudioButton, audio ? 'white' : 'red');
     setColor(initVideoButton, 'red');
- 
     lS.setInitConfig(lS.MEDIA_TYPE.audio, audio);
     lS.setInitConfig(lS.MEDIA_TYPE.video, false);
 }
- 
 // ####################################################
 // SOME PEER INFO
 // ####################################################
@@ -1526,37 +1519,37 @@ function showMobileAudioGuidance() {
 
 function handleAudio() {
     if (!isAudioAllowed) return;
- 
+
     audio = !audio;
- 
+
     initAudioButton.className =
         'fas fa-microphone' + (audio ? '' : '-slash');
- 
+
     setColor(initAudioButton, audio ? 'white' : 'red');
     setColor(startAudioButton, audio ? 'white' : 'red');
- 
+
     checkInitAudio(isAudioAllowed);
- 
+
     lS.setInitConfig(lS.MEDIA_TYPE.audio, audio);
 }
 
 async function handleVideo() {
     if (!isVideoAllowed) return;
- 
+
     if (!video) {
         // Camera is OFF → turn it ON
         const deviceId = initVideoSelect.value;
- 
+
         if (!deviceId) return;
- 
+
         try {
             const started = await changeCamera(deviceId);
- 
+
             if (!started) {
                 video = false;
                 return;
             }
- 
+
             video = true;
         } catch (error) {
             console.error('[Error] handleVideo:', error);
@@ -1566,51 +1559,51 @@ async function handleVideo() {
     } else {
         // Camera is ON → turn it OFF
         video = false;
- 
+
         await stopTracks(initStream);
         initStream = null;
- 
+
         if (initVideo) {
             initVideo.srcObject = null;
         }
- 
+
         elemDisplay('initVideo', false);
         elemDisplay('initVideoLoader', false);
         initVideoContainerShow(false);
     }
- 
+
     // Update UI to reflect the NEW state
     initVideoButton.className =
         'fas fa-video' + (video ? '' : '-slash');
- 
+
     setColor(initVideoButton, video ? 'white' : 'red');
     setColor(startVideoButton, video ? 'white' : 'red');
- 
+
     lS.setInitConfig(lS.MEDIA_TYPE.video, video);
 }
 
 async function handleAudioVideo() {
     isAudioVideoAllowed = !isAudioVideoAllowed;
- 
+
     if (!isAudioVideoAllowed) {
         // Turning OFF the audio/video feature
         audio = false;
         video = false;
- 
+
         isAudioAllowed = false;
         isVideoAllowed = false;
- 
+
         await stopTracks(initStream);
         initStream = null;
- 
+
         if (initVideo) {
             initVideo.srcObject = null;
         }
- 
+
         elemDisplay('initVideo', false);
         elemDisplay('initVideoLoader', false);
         initVideoContainerShow(false);
- 
+
         hide(initAudioButton);
         hide(initVideoButton);
         hide(initVideoAudioRefreshButton);
@@ -1619,30 +1612,30 @@ async function handleAudioVideo() {
         // Set permissions based on button config (NOT hardware state)
         isAudioAllowed = BUTTONS.main.startAudioButton;
         isVideoAllowed = BUTTONS.main.startVideoButton;
- 
+
         show(initAudioButton);
         show(initVideoButton);
- 
+
         if (!isMobileDevice) {
             show(initVideoAudioRefreshButton);
         }
     }
- 
+
     lS.setInitConfig(lS.MEDIA_TYPE.audioVideo, isAudioVideoAllowed);
- 
+
     initAudioVideoButton.className =
         'fas fa-eye' + (isAudioVideoAllowed ? '' : '-slash');
- 
+
     initAudioButton.className =
         'fas fa-microphone' + (audio ? '' : '-slash');
- 
+
     initVideoButton.className =
         'fas fa-video' + (video ? '' : '-slash');
- 
+
     setColor(initAudioVideoButton, isAudioVideoAllowed ? 'white' : 'red');
     setColor(initAudioButton, audio ? 'white' : 'red');
     setColor(initVideoButton, video ? 'white' : 'red');
- 
+
     checkInitVideo(isVideoAllowed);
     checkInitAudio(isAudioAllowed);
 }
@@ -1842,6 +1835,7 @@ function joinRoom(peer_name, room_id) {
         roomId.innerText = room_id;
         userName.innerText = peer_name;
         isUserPresenter.innerText = isPresenter;
+        // Add `video` to the constructor args (after isVideoAllowed):
         rc = new RoomClient(
             localAudio,
             remoteAudios,
@@ -1855,6 +1849,7 @@ function joinRoom(peer_name, room_id) {
             peer_info,
             isAudioAllowed,
             isVideoAllowed,
+            video,               // ← NEW: actual initial camera state
             isScreenAllowed,
             joinRoomWithScreen,
             isSpeechSynthesisSupported,
@@ -1986,7 +1981,7 @@ function roomIsReady() {
     if (BUTTONS.main.documentPiPButton && showDocumentPipBtn) show(documentPiPButton);
     BUTTONS.main.settingsButton && show(settingsButton);
     isAudioAllowed ? show(stopAudioButton) : BUTTONS.main.startAudioButton && show(startAudioButton);
-    isVideoAllowed ? show(stopVideoButton) : BUTTONS.main.startVideoButton && show(startVideoButton);
+    video ? show(stopVideoButton) : BUTTONS.main.startVideoButton && show(startVideoButton);
     if (!BUTTONS.main.startAudioButton) {
         elemDisplay('tabAudioDevicesBtn', false);
         elemDisplay('tabAudioDevices', false);
@@ -2991,11 +2986,13 @@ function setButtonsInit() {
 }
 
 function handleSelectsInit() {
-    // devices init options
+
     initVideoSelect.onchange = async () => {
-        await changeCamera(initVideoSelect.value);
         videoSelect.selectedIndex = initVideoSelect.selectedIndex;
         refreshLsDevices();
+        if (video) {
+            await changeCamera(initVideoSelect.value);
+        }
     };
     initMicrophoneSelect.onchange = () => {
         microphoneSelect.selectedIndex = initMicrophoneSelect.selectedIndex;
@@ -3058,7 +3055,6 @@ async function setSelectsInit() {
         //
         console.log('04.4 ----> Get Local Storage Devices after', lS.getLocalStorageDevices());
     }
-    if (initVideoSelect.value) await changeCamera(initVideoSelect.value);
 }
 
 function selectOptionByValueExist(selectElement, value) {
@@ -3095,30 +3091,30 @@ async function changeCamera(deviceId) {
             aspectRatio: 1.777,
         },
     };
-    await navigator.mediaDevices
-        .getUserMedia(videoConstraints)
-        .then(async (camStream) => {
-            initVideo.srcObject = camStream;
-            initStream = camStream;
-            console.log(
-                '04.5 ----> Success attached init cam video stream',
-                initStream.getVideoTracks()[0].getSettings()
-            );
-            checkInitConfig();
-            camera = detectCameraFacingMode(camStream);
-            handleCameraMirror(initVideo);
-            elemDisplay('initVideoLoader', false);
-            isInitVideoLoaded = true;
-        })
-        .catch((error) => {
-            console.error('[Error] changeCamera', error);
-            handleMediaError('video/audio', error, '/');
-            isInitVideoLoaded = false;
-            elemDisplay('initVideoLoader', false);
-        });
+    try {
+        const camStream = await navigator.mediaDevices.getUserMedia(videoConstraints);
+        initVideo.srcObject = camStream;
+        initStream = camStream;
+        console.log(
+            '04.5 ----> Success attached init cam video stream',
+            initStream.getVideoTracks()[0].getSettings()
+        );
+        camera = detectCameraFacingMode(camStream);
+        handleCameraMirror(initVideo);
+        elemDisplay('initVideoLoader', false);
+        isInitVideoLoaded = true;
 
-    if (isVideoAllowed) {
-        await loadVirtualBackgroundSettings();
+        if (isVideoAllowed) {
+            await loadVirtualBackgroundSettings();
+        }
+
+        return true;
+    } catch (error) {
+        console.error('[Error] changeCamera', error);
+        handleMediaError('video/audio', error, '/');
+        isInitVideoLoaded = false;
+        elemDisplay('initVideoLoader', false);
+        return false;
     }
 }
 
@@ -6711,16 +6707,16 @@ function getParticipantsList(peers) {
                 onClick: `rc.peerAction('me','${socket.id}','mute',true,true)`,
                 iconHtml: _PEER.audioOff,
             }) +
-                renderParticipantActionButton({
-                    buttonId: 'hideAllButton',
-                    onClick: `rc.peerAction('me','${socket.id}','hide',true,true)`,
-                    iconHtml: _PEER.videoOff,
-                }) +
-                renderParticipantActionButton({
-                    buttonId: 'stopAllButton',
-                    onClick: `rc.peerAction('me','${socket.id}','stop',true,true)`,
-                    iconHtml: _PEER.screenOff,
-                })
+            renderParticipantActionButton({
+                buttonId: 'hideAllButton',
+                onClick: `rc.peerAction('me','${socket.id}','hide',true,true)`,
+                iconHtml: _PEER.videoOff,
+            }) +
+            renderParticipantActionButton({
+                buttonId: 'stopAllButton',
+                onClick: `rc.peerAction('me','${socket.id}','stop',true,true)`,
+                iconHtml: _PEER.screenOff,
+            })
         );
     }
 
@@ -7519,7 +7515,7 @@ function showImageSelector() {
                     initImageUrlInput.value = clipboardText;
                 }
             })
-            .catch(() => {});
+            .catch(() => { });
     }
 
     initSaveImageUrlBtn.addEventListener('click', async () => {
@@ -7930,11 +7926,10 @@ async function deleteAllBreakoutRooms() {
         html: `
             <div class="popup-template-copy popup-template-copy--left">
                 <b>${deletingAllRooms ? 'This will remove every breakout room.' : `This will remove ${inactiveRooms.length} inactive breakout room${inactiveRooms.length !== 1 ? 's' : ''}.`}</b><br /><br />
-                ${
-                    activeRooms.length > 0
-                        ? `${activeRooms.length} active breakout room${activeRooms.length !== 1 ? 's will remain open because participant' : ' will remain open because a participant is'} still inside.`
-                        : 'Participants will no longer be able to join these rooms until you create them again.'
-                }
+                ${activeRooms.length > 0
+                ? `${activeRooms.length} active breakout room${activeRooms.length !== 1 ? 's will remain open because participant' : ' will remain open because a participant is'} still inside.`
+                : 'Participants will no longer be able to join these rooms until you create them again.'
+            }
             </div>
         `,
         showDenyButton: true,

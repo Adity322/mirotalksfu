@@ -246,6 +246,7 @@ class RoomClient {
         peer_info,
         isAudioAllowed,
         isVideoAllowed,
+        video,
         isScreenAllowed,
         joinRoomWithScreen,
         isSpeechSynthesisSupported,
@@ -330,6 +331,7 @@ class RoomClient {
         this.dominantSpeaker = false;
         this.isAudioAllowed = isAudioAllowed;
         this.isVideoAllowed = isVideoAllowed;
+        this.initialVideo = video;
         this.isScreenAllowed = isScreenAllowed;
         this.joinRoomWithScreen = joinRoomWithScreen;
         this.producerTransport = null;
@@ -743,7 +745,7 @@ class RoomClient {
             if (BUTTONS.settings.tabRecording) {
                 room.config.hostOnlyRecording
                     ? (console.log('07.1 ----> WARNING Room Host only recording enabled'),
-                      this.event(_EVENTS.hostOnlyRecordingOn))
+                        this.event(_EVENTS.hostOnlyRecordingOn))
                     : this.event(_EVENTS.hostOnlyRecordingOff);
             }
 
@@ -954,7 +956,7 @@ class RoomClient {
 
     async initProducerTransport(device) {
         const producerTransportData = await this.socket.request('createWebRtcTransport', {
-            forceTcp: false,
+            forceTcp: true,
             rtpCapabilities: device.rtpCapabilities,
         });
 
@@ -1033,7 +1035,24 @@ class RoomClient {
                     }
                     break;
                 case 'failed':
-                    console.warn('❌ Producer Transport failed', { id: this.producerTransport.id });
+                    console.error('❌ PRODUCER TRANSPORT FAILED', {
+                        id: this.producerTransport.id,
+                        connectionState: this.producerTransport.connectionState,
+                        iceGatheringState: this.producerTransport.iceGatheringState
+                    });
+
+                    if (this.producerTransport._handler?._pc) {
+                        console.error(
+                            'Producer ICE connection state:',
+                            this.producerTransport._handler._pc.iceConnectionState
+                        );
+
+                        console.error(
+                            'Producer ICE gathering state:',
+                            this.producerTransport._handler._pc.iceGatheringState
+                        );
+                    }
+
                     break;
                 default:
                     console.log('Producer transport connection state changed', {
@@ -1065,7 +1084,7 @@ class RoomClient {
 
     async initConsumerTransport(device) {
         const consumerTransportData = await this.socket.request('createWebRtcTransport', {
-            forceTcp: false,
+            forceTcp: true,
         });
 
         if (consumerTransportData.error) {
@@ -1111,7 +1130,24 @@ class RoomClient {
                     }
                     break;
                 case 'failed':
-                    console.warn('❌ Consumer Transport failed', { id: this.consumerTransport.id });
+                    console.error('❌ CONSUMER TRANSPORT FAILED', {
+                        id: this.consumerTransport.id,
+                        connectionState: this.consumerTransport.connectionState,
+                        iceGatheringState: this.consumerTransport.iceGatheringState
+                    });
+
+                    if (this.consumerTransport._handler?._pc) {
+                        console.error(
+                            'Consumer ICE connection state:',
+                            this.consumerTransport._handler._pc.iceConnectionState
+                        );
+
+                        console.error(
+                            'Consumer ICE gathering state:',
+                            this.consumerTransport._handler._pc.iceGatheringState
+                        );
+                    }
+
                     break;
                 default:
                     console.log('Consumer transport connection state changed', {
@@ -2095,7 +2131,8 @@ class RoomClient {
             }
         }
 
-        if (this.isVideoAllowed && !this._moderator.video_start_hidden) {
+        // Fixed:
+        if (this.initialVideo && !this._moderator.video_start_hidden) {
             await this.produce(mediaType.video, videoSelect.value);
             console.log('10 ----> START VIDEO MEDIA');
         } else {
@@ -2596,7 +2633,7 @@ class RoomClient {
                         imageUrlInput.value = clipboardText;
                     }
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
 
         saveImageUrlBtn.addEventListener('click', async () => {
@@ -4526,12 +4563,26 @@ class RoomClient {
         const consumerStream = new MediaStream();
         consumerStream.addTrack(track);
         elem.srcObject = consumerStream;
+
         if (type !== mediaType.audio) {
             this.hideVideoLoaderOnPlay(elem);
+        } else {
+            try {
+                await elem.play();
+                console.log(who + ' audio playback started for ' + type);
+            } catch (err) {
+                console.warn(who + ' audio autoplay blocked, will retry on next user gesture:', err);
+                this.userLog('info', 'Click anywhere to enable audio', 'top-end', 4000);
+                this.runOnNextUserActivation(() => {
+                    elem.play()
+                        .then(() => console.log(who + ' audio playback started after user gesture'))
+                        .catch((e) => console.error(who + ' retry play() failed:', e));
+                });
+            }
         }
+
         console.log(who + ' Success attached media ' + type);
     }
-
     hasUserActivation() {
         if (navigator.userActivation) return !!navigator.userActivation.isActive;
         if ('hasTransientUserActivation' in document) return !!document.hasTransientUserActivation;
@@ -5736,10 +5787,10 @@ class RoomClient {
             transcription.isPin();
         const menuBarWidth =
             this.isVideoPinned ||
-            this.isChatPinned ||
-            this.isPollPinned ||
-            this.isBreakoutPinned ||
-            transcription.isPin()
+                this.isChatPinned ||
+                this.isPollPinned ||
+                this.isBreakoutPinned ||
+                transcription.isPin()
                 ? '75%'
                 : '70%';
         const videoMenuBar = rc.getEcN('videoMenuBar');
@@ -6715,8 +6766,8 @@ class RoomClient {
             peerAvatar && this.isValidAvatarURL(peerAvatar)
                 ? peerAvatar
                 : this.isValidEmail(peerName)
-                  ? this.genGravatar(peerName)
-                  : this.genAvatarSvg(peerName, 32);
+                    ? this.genGravatar(peerName)
+                    : this.genAvatarSvg(peerName, 32);
         avatar === 'left' ? (this.leftMsgAvatar = avatarImg) : (this.rightMsgAvatar = avatarImg);
     }
 
@@ -6727,8 +6778,8 @@ class RoomClient {
         // '<', '>' and '&' which breaks SVG data URIs produced by genAvatarSvg.
         const getImg =
             this.isValidAvatarURL(img) ||
-            (typeof img === 'string' && img.startsWith('data:image/')) ||
-            (typeof img === 'string' && (img.startsWith('../') || img.startsWith('/')))
+                (typeof img === 'string' && img.startsWith('data:image/')) ||
+                (typeof img === 'string' && (img.startsWith('../') || img.startsWith('/')))
                 ? img
                 : '';
         const getFromName = filterXSS(fromName);
@@ -9215,9 +9266,9 @@ class RoomClient {
             },
             ...(imageUrl
                 ? {
-                      imageAlt: 'mirotalksfu-file-sharing',
-                      imageUrl,
-                  }
+                    imageAlt: 'mirotalksfu-file-sharing',
+                    imageUrl,
+                }
                 : {}),
             showClass: { popup: 'animate__animated animate__fadeInDown' },
             hideClass: { popup: 'animate__animated animate__fadeOutUp' },
@@ -10003,10 +10054,10 @@ class RoomClient {
                 active
                     ? this.userLog('info', `${icons.chat} Chat will be shown, when you receive a message`, 'top-end')
                     : this.userLog(
-                          'info',
-                          `${icons.chat} Chat not will be shown, when you receive a message`,
-                          'top-end'
-                      );
+                        'info',
+                        `${icons.chat} Chat not will be shown, when you receive a message`,
+                        'top-end'
+                    );
                 break;
             case 'speechMessages':
                 this.userLog('info', `${icons.speech} Speech incoming messages ${status}`, 'top-end');
@@ -10014,28 +10065,28 @@ class RoomClient {
             case 'transcriptShowOnMsg':
                 active
                     ? this.userLog(
-                          'info',
-                          `${icons.transcript} Transcript will be shown, when you receive a message`,
-                          'top-end'
-                      )
+                        'info',
+                        `${icons.transcript} Transcript will be shown, when you receive a message`,
+                        'top-end'
+                    )
                     : this.userLog(
-                          'info',
-                          `${icons.transcript} Transcript not will be shown, when you receive a message`,
-                          'top-end'
-                      );
+                        'info',
+                        `${icons.transcript} Transcript not will be shown, when you receive a message`,
+                        'top-end'
+                    );
                 break;
             case 'transcriptSendToAll':
                 active
                     ? this.userLog(
-                          'info',
-                          `${icons.transcript} Transcription will be sent to all participants`,
-                          'top-end'
-                      )
+                        'info',
+                        `${icons.transcript} Transcription will be sent to all participants`,
+                        'top-end'
+                    )
                     : this.userLog(
-                          'info',
-                          `${icons.transcript} Transcription will not be sent to participants`,
-                          'top-end'
-                      );
+                        'info',
+                        `${icons.transcript} Transcription will not be sent to participants`,
+                        'top-end'
+                    );
                 break;
             case 'video_start_privacy':
                 this.userLog(
@@ -10264,8 +10315,8 @@ class RoomClient {
                 peer_avatar && this.isValidAvatarURL(peer_avatar)
                     ? peer_avatar
                     : this.isValidEmail(peer_name)
-                      ? this.genGravatar(peer_name, 32)
-                      : this.genAvatarSvg(peer_name, 32);
+                        ? this.genGravatar(peer_name, 32)
+                        : this.genAvatarSvg(peer_name, 32);
 
             const lobbyAcceptId = `${displayName}___${safePeerId}___lobbyAccept`;
             const lobbyRejectId = `${displayName}___${safePeerId}___lobbyReject`;
@@ -11322,9 +11373,8 @@ class RoomClient {
             switch (action) {
                 case 'ban':
                     if (peerActionAllowed) {
-                        const message = `Will ban you from the room${
-                            msg ? `<br><br><span class="red">Reason: ${msg}</span>` : ''
-                        }`;
+                        const message = `Will ban you from the room${msg ? `<br><br><span class="red">Reason: ${msg}</span>` : ''
+                            }`;
                         this.exit(true);
                         this.sound(action);
                         this.peerActionProgress(from_peer_name, message, 5000, action);
@@ -11332,9 +11382,8 @@ class RoomClient {
                     break;
                 case 'eject':
                     if (peerActionAllowed) {
-                        const message = `Will eject you from the room${
-                            msg ? `<br><br><span class="red">Reason: ${msg}</span>` : ''
-                        }`;
+                        const message = `Will eject you from the room${msg ? `<br><br><span class="red">Reason: ${msg}</span>` : ''
+                            }`;
                         this.exit(true);
                         this.sound(action);
                         this.peerActionProgress(from_peer_name, message, 5000, action);
@@ -11770,8 +11819,8 @@ class RoomClient {
                 category === 'AI ASSISTANT'
                     ? 'Assistant replies are visible only to you'
                     : peer_id === 'all'
-                      ? `Everyone in room ${participants}`
-                      : `${status}`;
+                        ? `Everyone in room ${participants}`
+                        : `${status}`;
             return `
                 <a data-toggle="modal" data-target="#view_info">
                     <img src="${imgSrc}" alt="avatar" />
@@ -12539,7 +12588,7 @@ class RoomClient {
                             );
                             if (result?.audio) {
                                 voicePreviewPlayer.src = result.audio;
-                                voicePreviewPlayer.play().catch(() => {});
+                                voicePreviewPlayer.play().catch(() => { });
                             }
                         } catch (err) {
                             console.warn('Voice preview failed', err);
@@ -13117,7 +13166,7 @@ class RoomClient {
         // Ensure video playback starts reliably (autoplay can fail on subsequent sessions)
         const ensurePlayback = () => {
             if (this.videoAIElement && this.videoAIElement.paused && this.videoAIElement.srcObject) {
-                this.videoAIElement.play().catch(() => {});
+                this.videoAIElement.play().catch(() => { });
             }
         };
         setTimeout(ensurePlayback, 500);
