@@ -956,7 +956,7 @@ class RoomClient {
 
     async initProducerTransport(device) {
         const producerTransportData = await this.socket.request('createWebRtcTransport', {
-            forceTcp: true,
+            forceTcp: false,
             rtpCapabilities: device.rtpCapabilities,
         });
 
@@ -1084,7 +1084,7 @@ class RoomClient {
 
     async initConsumerTransport(device) {
         const consumerTransportData = await this.socket.request('createWebRtcTransport', {
-            forceTcp: true,
+            forceTcp: false,
         });
 
         if (consumerTransportData.error) {
