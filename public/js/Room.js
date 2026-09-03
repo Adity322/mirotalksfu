@@ -878,6 +878,12 @@ async function getMicrophoneVolumeIndicator(stream) {
             stopMicrophoneProcessing();
             console.log('Start microphone volume indicator for audio track', stream.getAudioTracks()[0]);
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Browser autoplay policy may suspend AudioContext — resume it
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
             const microphone = audioContext.createMediaStreamSource(stream);
             await audioContext.audioWorklet.addModule('/js/VolumeProcessor.js');
             workletNode = new AudioWorkletNode(audioContext, 'volume-processor');
@@ -896,8 +902,9 @@ async function getMicrophoneVolumeIndicator(stream) {
                 }
             };
 
+            // Connect mic -> worklet for volume analysis only
+            // Do NOT connect workletNode -> destination to avoid local echo/feedback
             microphone.connect(workletNode);
-            workletNode.connect(audioContext.destination);
         } catch (error) {
             console.error('Error initializing microphone volume indicator:', error);
             stopMicrophoneProcessing();

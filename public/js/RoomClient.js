@@ -2254,7 +2254,7 @@ class RoomClient {
                 }
             }
 
-            if (audio && BUTTONS.settings.customNoiseSuppression) {
+            if (audio && BUTTONS.settings.customNoiseSuppression && localStorageSettings.mic_noise_suppression) {
                 /*
                  * Initialize RNNoise Suppression if enabled and supported
                  * This will only apply to audio tracks
